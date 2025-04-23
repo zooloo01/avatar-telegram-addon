@@ -1,5 +1,4 @@
-
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, send_file, abort
 from telethon.sync import TelegramClient
 from telethon.tl.types import MessageMediaDocument
 import os
@@ -47,12 +46,28 @@ def catalog():
 def stream(id):
     msg_id = int(id.replace("avatar_", ""))
     msg = client.get_messages(channel, ids=msg_id)
-    if msg and msg.media:
-        return jsonify({"streams": [{
-            "title": "Telegram Stream",
-            "url": f"https://api.telegram.org/file/bot<your-bot-token>/videos/{msg.id}.mp4"
-        }]})
+
+    if msg and msg.media and isinstance(msg.media, MessageMediaDocument):
+        return jsonify({
+            "streams": [{
+                "title": msg.message or "Telegram Video",
+                "url": f"{request.host_url}video/{msg_id}"  # לינק פנימי
+            }]
+        })
     return jsonify({"streams": []})
+
+@app.route("/video/<msg_id>")
+def video(msg_id):
+    try:
+        msg_id = int(msg_id)
+        msg = client.get_messages(channel, ids=msg_id)
+
+        if msg and msg.media and isinstance(msg.media, MessageMediaDocument):
+            file = client.download_media(msg)
+            return send_file(file, as_attachment=False)
+    except:
+        pass
+    abort(404)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
